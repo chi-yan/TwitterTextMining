@@ -1,0 +1,80 @@
+---
+title: "Twitter Word Associations"
+output: html_notebook
+---
+
+"Word associations" dot plot of tweets. This code is adapted from the "Intro-to-text-mining-bag-of-words" DataCamp course. Tweets are obtained using the R "twitteR" package.
+
+```{r}
+options(warn=-1) #surpress warnings
+
+library(qdap, quietly = TRUE, warn.conflicts=FALSE)
+library(tm, quietly = TRUE, warn.conflicts=FALSE)
+library(twitteR, quietly = TRUE, warn.conflicts=FALSE)
+library(ROAuth, quietly = TRUE, warn.conflicts=FALSE)
+library(httr, quietly = TRUE, warn.conflicts=FALSE)
+library(wordcloud, quietly = TRUE, warn.conflicts=FALSE)
+library(ggplot2, quietly=TRUE, warn.conflicts = FALSE)
+library(ggthemes, quietly=TRUE, warn.conflicts = FALSE)
+
+#API Keys, OAuth access tokens need to be supplied
+#https://dev.twitter.com/oauth/overview/application-owner-access-tokens
+setup_twitter_oauth(api_key, api_secret, access_token, access_token_secret)
+
+#Source: https://stackoverflow.com/questions/14281282/how-to-write-custom-removepunctuation-function-to-better-deal-with-unicode-cha 
+removeNonAlnum <- function(x){
+  gsub("[^[:alnum:]^[:space:]]","",x)
+}
+
+removeNonAlphabet <- function(x){
+  gsub("[^[:alpha:]^[:space:]]","",x)
+}
+
+removeHttp <- function(x){
+  gsub("http\\S+\\s*", "", x)
+}
+clean_corpus <- function(corpus, term){
+ corpus <- tm_map(corpus, content_transformer(removeNonAlnum))
+  corpus <- tm_map(corpus, content_transformer(removeNonAlphabet))
+  corpus <- tm_map(corpus, content_transformer(removeHttp))
+  corpus <- tm_map(corpus, stripWhitespace)
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removeWords, c(stopwords("en")))
+ 
+  return(corpus)
+}
+
+word_associations <- function(term, numberOfTweets, minCorrelation)
+{
+  #searches Twitter and converts to data frame
+  tweets = twListToDF(searchTwitter(term, n=numberOfTweets))$text
+
+  vec_source = VectorSource(tweets)
+  vec_corp = VCorpus(vec_source)
+
+  #cleans corpus
+  clean_corp = clean_corpus(vec_corp, term) #to view corp, use as.data.frame(clean_corp)$text
+
+  #converts corpus to term-document matrix
+  tdm = TermDocumentMatrix(clean_corp)
+  
+  #generates word association plot, code from Datacamp, intro to text mining course
+  associations = findAssocs(tdm, term, minCorrelation)
+  associations
+  
+  associations_df <- list_vect2df(associations)[, 2:3]
+  ggplot(associations_df, aes(y = associations_df[, 1])) + 
+  geom_point(aes(x = associations_df[, 2]), 
+             data = associations_df, size = 3) + 
+  theme_gdocs() +
+  ggtitle(paste("Words associated with", term, sep=" "))
+}
+
+word_associations("beethoven", 1000, 0.09)
+word_associations("mozart", 1000, 0.1)
+word_associations("chopin", 1000, 0.1)
+
+
+```
+
